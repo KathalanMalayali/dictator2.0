@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Indian TTS</title>
+</head>
+<body>
+  <h2>Dictator....Owner_Siya Paily</h2>
+
+  <textarea id="textInput" rows="10" cols="60" placeholder="Type or paste your text here..."></textarea><br><br>
+
+  <label for="speedRange">Speech Speed (0.5x to 2x): </label>
+  <input type="range" id="speedRange" min="0.5" max="2" step="0.1" value="1">
+  <span id="speedValue">1.0</span>x<br><br>
+
+  <label for="gapInput">Gap After Every 3 Words (in seconds): </label>
+  <input type="number" id="gapInput" min="0" step="0.1" value="1"> seconds<br><br>
+
+  <label for="voiceSelect">Choose Voice:</label>
+  <select id="voiceSelect"></select><br><br>
+
+  <label>
+    <input type="checkbox" id="spellOut"> Spell acronyms (character-by-character)?
+  </label><br><br>
+
+  <button onclick="readText()">🔊 Read Aloud</button>
+  <button onclick="stopReading()">⏹️ Stop</button>
+
+  <script>
+    const speedSlider = document.getElementById('speedRange');
+    const speedDisplay = document.getElementById('speedValue');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const spellOutToggle = document.getElementById('spellOut');
+
+    speedSlider.addEventListener('input', () => {
+      speedDisplay.textContent = speedSlider.value;
+    });
+
+    let voices = [];
+    let index = 0;
+    let wordChunks = [];
+    let reading = false;
+
+    const symbolMap = {
+      ',': 'comma', '.': 'period', '?': 'question mark', '!': 'exclamation mark',
+      '@': 'at symbol', '#': 'hashtag', '$': 'dollar sign', '%': 'percent',
+      '^': 'caret', '&': 'and', '*': 'asterisk', '(': 'open parenthesis',
+      ')': 'close parenthesis', '-': 'dash', '_': 'underscore', '+': 'plus',
+      '=': 'equals', ':': 'colon', ';': 'semicolon', '"': 'quote', "'": 'apostrophe',
+      '/': 'slash', '\\': 'backslash', '|': 'pipe', '<': 'less than', '>': 'greater than',
+      '[': 'open bracket', ']': 'close bracket', '{': 'open brace', '}': 'close brace'
+    };
+
+    function populateVoiceList() {
+      voices = speechSynthesis.getVoices();
+      voiceSelect.innerHTML = '';
+      voices.forEach((voice, i) => {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `${voice.name} (${voice.lang})${voice.default ? ' [default]' : ''}`;
+        if (voice.lang.includes('en-IN') || voice.name.toLowerCase().includes('india')) {
+          option.selected = true;
+        }
+        voiceSelect.appendChild(option);
+      });
+    }
+
+    window.speechSynthesis.onvoiceschanged = populateVoiceList;
+    populateVoiceList();
+
+    function preprocessText(text) {
+      const replaced = text.split('').map(char => {
+        if (symbolMap[char]) return ` ${symbolMap[char]} `;
+        return char;
+      }).join('');
+      let words = replaced.trim().split(/\s+/);
+
+      // Optional: spell acronyms (e.g., NASA => N A S A)
+      if (spellOutToggle.checked) {
+        words = words.flatMap(word => {
+          if (/^[A-Z]{2,}$/.test(word)) {
+            return word.split('').map(ch => ch.toUpperCase());
+          }
+          return word;
+        });
+      }
+
+      return words;
+    }
+
+    function chunkWords(words, chunkSize) {
+      const chunks = [];
+      for (let i = 0; i < words.length; i += chunkSize) {
+        chunks.push(words.slice(i, i + chunkSize).join(' '));
+      }
+      return chunks;
+    }
+
+    function readText() {
+      const text = document.getElementById('textInput').value;
+      const words = preprocessText(text);
+      wordChunks = chunkWords(words, 3);
+
+      const rate = parseFloat(speedSlider.value);
+      const gapMilliseconds = parseFloat(document.getElementById('gapInput').value) * 1000;
+      const selectedVoice = voices[voiceSelect.value];
+
+      index = 0;
+      reading = true;
+
+      function speakChunk() {
+        if (!reading || index >= wordChunks.length) return;
+
+        const utterance = new SpeechSynthesisUtterance(wordChunks[index]);
+        utterance.rate = rate;
+        utterance.voice = selectedVoice;
+
+        utterance.onend = () => {
+          if (reading) {
+            index++;
+            setTimeout(speakChunk, gapMilliseconds);
+          }
+        };
+
+        speechSynthesis.speak(utterance);
+      }
+
+      speechSynthesis.cancel(); // stop current speech
+      speakChunk(); // start speaking
+    }
+
+    function stopReading() {
+      reading = false;
+      speechSynthesis.cancel();
+    }
+  </script>
+</body>
+</html>
